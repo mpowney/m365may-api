@@ -1,0 +1,33 @@
+# ASP.NET Core
+# Build and test ASP.NET Core web applications targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/vsts/pipelines/languages/dotnet-core
+
+trigger:
+- dev
+- master
+
+pool:
+  vmImage: 'VS2017-Win2016'
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+- script: dotnet build --configuration $(buildConfiguration)
+  displayName: 'dotnet build $(buildConfiguration)'
+- task: DotNetCoreCLI@2
+  displayName: 'dotnet core cli $(buildConfiguration)'
+  inputs:
+    command: publish
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+    projects: ./LowRezApi.csproj
+    publishWebProjects: false
+    modifyOutputPath: true
+    zipAfterPublish: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'publish build artifacts $(buildConfiguration)'
+  inputs:
+    pathtoPublish: $(Build.ArtifactStagingDirectory).zip
+    artifactName: drop

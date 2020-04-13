@@ -19,7 +19,7 @@ namespace com.m365may
 {
     public static class GetSession
     {
-        [FunctionName("GetSession")]
+        [FunctionName("GetSessionById")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "_api/v1/session/{id}")] HttpRequest req,
             [Table("Cache")] CloudTable cacheTable,
@@ -29,6 +29,8 @@ namespace com.m365may
         {
 
             id = id ?? req.Query["id"];
+            bool ical = req.Query.ContainsKey("ical");
+            bool link = req.Query.ContainsKey("link");
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic data = JsonConvert.DeserializeObject(requestBody);
@@ -43,10 +45,16 @@ namespace com.m365may
                 string jsonData = entity.GetValue();
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link);
                 #nullable disable
                 if (foundSession != null) {
-                    return new OkObjectResult(GetSession.ById(jsonData, id));
+                    return ical ? 
+                            (IActionResult)new ContentResult {
+                                ContentType = "text/calendar",
+                                Content = foundSession.ToIcalString()
+                            }
+                        :
+                            new OkObjectResult(foundSession);
                 }
 
                 return new NotFoundResult();
@@ -75,10 +83,10 @@ namespace com.m365may
                 log.LogInformation($"Populated sessions cache success: {success}");
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link);
                 #nullable disable
                 if (foundSession != null) {
-                    return new OkObjectResult(GetSession.ById(jsonData, id));
+                    return new OkObjectResult(GetSession.ById(jsonData, id, req, link));
                 }
 
                 return new NotFoundResult();
@@ -90,13 +98,13 @@ namespace com.m365may
         }
 
         #nullable enable
-        private static Session? ById(string jsonData, string? id) {
+        private static Session? ById(string jsonData, string? id, HttpRequest req, bool appendUrlToDescription = false) {
         #nullable disable
 
             if (id == null) {
                 return null;
             }
-            
+
             dynamic data = JsonConvert.DeserializeObject(jsonData);
             JArray sessionsData = data?[0].sessions;
             List<Session> sessions = JsonConvert.DeserializeObject<List<Session>>(JsonConvert.SerializeObject(sessionsData));
@@ -104,7 +112,9 @@ namespace com.m365may
 
             if (foundSessions.Count() > 0)
             {
-                return foundSessions.First();
+                Session session = foundSessions.First();
+                if (appendUrlToDescription) session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                return session;
             }
 
             return null;

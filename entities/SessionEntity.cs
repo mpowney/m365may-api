@@ -2,16 +2,38 @@ using System;
 using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Ical.Net.CalendarComponents;
+using Ical.Net.DataTypes;
+using Ical.Net.Serialization;
+using Ical.Net;
 
 namespace com.m365may.entities {
 
     public class Session {
+        public Session() { }
         public string id { get; set; }
         public string title { get; set; }
         public string description { get; set; }
         public DateTime? startsAt { get; set; }
         public DateTime? endsAt { get; set; }
         public Speaker[] speakers { get; set; }
+
+        public string ToIcalString() 
+        {
+
+            var calendar = new Calendar();
+            calendar.Events.Add(new CalendarEvent {
+                Start = new CalDateTime(this.startsAt ??= DateTime.Now),
+                End = new CalDateTime(this.endsAt ??= DateTime.Now.AddMinutes(30)),
+                Summary = this.title,
+                Description = this.description
+            });
+
+            var serializer = new CalendarSerializer(calendar);
+
+            return serializer.SerializeToString();
+
+        }
     }
 
     public class Speaker {
