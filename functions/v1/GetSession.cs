@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -31,13 +32,20 @@ namespace com.m365may
             id = id ?? req.Query["id"];
             bool ical = req.Query.ContainsKey("ical");
             bool link = req.Query.ContainsKey("link");
+            bool linkInDescription = req.Query.ContainsKey("linkInDescription");
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic data = JsonConvert.DeserializeObject(requestBody);
             id = id ?? data?.id;
 
+            var config = new ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
+
             string cacheKey = $"sessions";
-            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey);
+            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey, new TimeSpan(0, 1, 0));
 
             if (entity != null) {
                 log.LogInformation("Returning sessions info from cache entity");
@@ -45,28 +53,23 @@ namespace com.m365may
                 string jsonData = entity.GetValue();
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link, linkInDescription);
                 #nullable disable
                 if (foundSession != null) {
                     return ical ? 
                             (IActionResult)new ContentResult {
                                 ContentType = "text/calendar",
-                                Content = foundSession.ToIcalString()
+                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_UID"])
                             }
                         :
                             new OkObjectResult(foundSession);
                 }
 
+                log.LogError($"Session {id} not found, returning 404");
                 return new NotFoundResult();
 
 
             }
-
-            var config = new ConfigurationBuilder()
-                .SetBasePath(context.FunctionAppDirectory)
-                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables()
-                .Build();
 
             string url = config.GetValue<string>("SESSIONIZE_SESSIONS_URL");
             log.LogInformation($"Looking up SESSIONIZE_SESSIONS_URL {url}.");
@@ -83,22 +86,30 @@ namespace com.m365may
                 log.LogInformation($"Populated sessions cache success: {success}");
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link, linkInDescription);
                 #nullable disable
                 if (foundSession != null) {
-                    return new OkObjectResult(GetSession.ById(jsonData, id, req, link));
+                    return ical ? 
+                            (IActionResult)new ContentResult {
+                                ContentType = "text/calendar",
+                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_UID"])
+                            }
+                        :
+                            new OkObjectResult(foundSession);
                 }
 
+                log.LogError($"Session {id} not found, returning 404");
                 return new NotFoundResult();
 
             }
 
+            log.LogCritical($"Error status returned by sessionize url {url}: {postResponse.StatusCode}");
             return new BadRequestObjectResult($"Bad result: {postResponse.StatusCode}");
 
         }
 
         #nullable enable
-        private static Session? ById(string jsonData, string? id, HttpRequest req, bool appendUrlToDescription = false) {
+        private static Session? ById(string jsonData, string? id, HttpRequest req, bool addUrl, bool appendUrlToDescription = false) {
         #nullable disable
 
             if (id == null) {
@@ -113,10 +124,10 @@ namespace com.m365may
             if (foundSessions.Count() > 0)
             {
                 Session session = foundSessions.First();
-                if (appendUrlToDescription) {
-                    session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
-                    session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
-                }
+
+                if (appendUrlToDescription) session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                if (addUrl) session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+
                 return session;
             }
 

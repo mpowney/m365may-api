@@ -1,5 +1,6 @@
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Threading.Tasks;
+using System;
 
 namespace com.m365may.entities
 {
@@ -57,17 +58,25 @@ namespace com.m365may.entities
             );
         }
 
-        public static async Task<CacheEntity> get(CloudTable cacheTable, string cacheType, string key) {
+        public static async Task<CacheEntity> get(CloudTable cacheTable, string cacheType, string key, TimeSpan cacheExpiry) {
 
             await cacheTable.CreateIfNotExistsAsync();
+
+            TimeSpan expiry = cacheExpiry == null ? new TimeSpan(365, 0, 0, 0) : cacheExpiry;
             
             TableQuery<CacheEntity> rangeQuery = new TableQuery<CacheEntity>().Where(
                 TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, 
-                        $"{cacheType}"),
-                    TableOperators.And,
-                    TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, 
-                        key)));
+                    TableQuery.CombineFilters(
+                        TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, 
+                            $"{cacheType}"),
+                        TableOperators.And,
+                        TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, 
+                            key)
+                    ),
+                    TableOperators.And, 
+                    TableQuery.GenerateFilterConditionForDate("Timestamp", QueryComparisons.GreaterThan,
+                        DateTime.Now.Subtract(expiry))
+                    ));
 
             var cacheFound = await cacheTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
             if (cacheFound.Results.Count > 0) {
@@ -91,7 +100,7 @@ namespace com.m365may.entities
             try {
 
                 CacheEntity newEntity = new CacheEntity(cacheType, key, value, storeForSeconds);
-                TableOperation insertCacheOperation = TableOperation.Insert(newEntity);
+                TableOperation insertCacheOperation = TableOperation.InsertOrReplace(newEntity);
                 await cacheTable.ExecuteAsync(insertCacheOperation);
 
             }

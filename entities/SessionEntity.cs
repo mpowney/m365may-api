@@ -19,16 +19,20 @@ namespace com.m365may.entities {
         public DateTime? endsAt { get; set; }
         public Speaker[] speakers { get; set; }
 
-        public string ToIcalString() 
+        public string ToIcalString(string SummaryFormat = "{title}", string UidFormat = "{id}") 
         {
+
+            if (SummaryFormat == null) SummaryFormat = "{title}";
+            if (UidFormat == null) UidFormat = "{id}";
 
             var calendar = new Calendar();
             calendar.Events.Add(new CalendarEvent {
                 Start = new CalDateTime(this.startsAt ??= DateTime.Now.ToUniversalTime()),
                 End = new CalDateTime(this.endsAt ??= DateTime.Now.ToUniversalTime().AddMinutes(30)),
-                Summary = this.title,
+                Summary = SummaryFormat.Replace("{title}", this.title),
                 Description = this.description,
-                Url = new Uri(this.url)
+                Url = this.url == null ? null : new Uri(this.url),
+                Uid = UidFormat.Replace("{id}", this.id),
             });
 
             var serializer = new CalendarSerializer(calendar);
