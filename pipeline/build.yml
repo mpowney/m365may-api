@@ -21,7 +21,7 @@ steps:
   inputs:
     command: publish
     arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
-    projects: ./LowRezApi.csproj
+    projects: ./api.csproj
     publishWebProjects: false
     modifyOutputPath: true
     zipAfterPublish: true
