@@ -32,7 +32,6 @@ namespace com.m365may
             id = id ?? req.Query["id"];
             bool ical = req.Query.ContainsKey("ical");
             bool link = req.Query.ContainsKey("link");
-            bool linkInDescription = req.Query.ContainsKey("linkInDescription");
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic data = JsonConvert.DeserializeObject(requestBody);
@@ -53,13 +52,13 @@ namespace com.m365may
                 string jsonData = entity.GetValue();
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link, linkInDescription);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link);
                 #nullable disable
                 if (foundSession != null) {
                     return ical ? 
                             (IActionResult)new ContentResult {
                                 ContentType = "text/calendar",
-                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_UID"])
+                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_DESCRIPTION"], config["ICAL_FORMAT_UID"])
                             }
                         :
                             new OkObjectResult(foundSession);
@@ -86,13 +85,13 @@ namespace com.m365may
                 log.LogInformation($"Populated sessions cache success: {success}");
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link, linkInDescription);
+                Session? foundSession = GetSession.ById(jsonData, id, req, link);
                 #nullable disable
                 if (foundSession != null) {
                     return ical ? 
                             (IActionResult)new ContentResult {
                                 ContentType = "text/calendar",
-                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_UID"])
+                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_DESCRIPTION"], config["ICAL_FORMAT_UID"])
                             }
                         :
                             new OkObjectResult(foundSession);
@@ -109,7 +108,7 @@ namespace com.m365may
         }
 
         #nullable enable
-        private static Session? ById(string jsonData, string? id, HttpRequest req, bool addUrl, bool appendUrlToDescription = false) {
+        private static Session? ById(string jsonData, string? id, HttpRequest req, bool addUrl) {
         #nullable disable
 
             if (id == null) {
@@ -125,7 +124,6 @@ namespace com.m365may
             {
                 Session session = foundSessions.First();
 
-                if (appendUrlToDescription) session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
                 if (addUrl) session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
 
                 return session;

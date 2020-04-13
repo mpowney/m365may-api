@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -19,20 +20,21 @@ namespace com.m365may.entities {
         public DateTime? endsAt { get; set; }
         public Speaker[] speakers { get; set; }
 
-        public string ToIcalString(string SummaryFormat = "{title}", string UidFormat = "{id}") 
+        public string ToIcalString(string SummaryFormat = "{title}", string DescriptionFormat = "{description}", string UidFormat = "{id}") 
         {
 
             if (SummaryFormat == null) SummaryFormat = "{title}";
             if (UidFormat == null) UidFormat = "{id}";
+            if (DescriptionFormat == null) DescriptionFormat = "{description}";
 
             var calendar = new Calendar();
             calendar.Events.Add(new CalendarEvent {
                 Start = new CalDateTime(this.startsAt ??= DateTime.Now.ToUniversalTime()),
                 End = new CalDateTime(this.endsAt ??= DateTime.Now.ToUniversalTime().AddMinutes(30)),
-                Summary = SummaryFormat.Replace("{title}", this.title),
-                Description = this.description,
+                Summary = ProcessSessionTokens(SummaryFormat, this),
+                Description = ProcessSessionTokens(DescriptionFormat, this),
                 Url = this.url == null ? null : new Uri(this.url),
-                Uid = UidFormat.Replace("{id}", this.id),
+                Uid = ProcessSessionTokens(UidFormat, this)
             });
 
             var serializer = new CalendarSerializer(calendar);
@@ -40,6 +42,20 @@ namespace com.m365may.entities {
             return serializer.SerializeToString();
 
         }
+
+        private static string ProcessSessionTokens(string value, Session session) {
+            
+            if (value == null) value = string.Empty;
+            value = value.Replace("{title}", session.title ??= string.Empty);
+            value = value.Replace("{description}", session.description ??= string.Empty );
+            value = value.Replace("{id}", session.id ??= string.Empty);
+            value = value.Replace("{url}", session.url ??= string.Empty);
+            value = value.Replace("{speakers}", string.Join(", ", session.speakers.Select(speaker => speaker.name)));
+
+            return value;
+        }
+
+
     }
 
     public class Speaker {
