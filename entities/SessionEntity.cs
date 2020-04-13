@@ -14,6 +14,7 @@ namespace com.m365may.entities {
         public string id { get; set; }
         public string title { get; set; }
         public string description { get; set; }
+        public string url { get; set; }
         public DateTime? startsAt { get; set; }
         public DateTime? endsAt { get; set; }
         public Speaker[] speakers { get; set; }
@@ -26,7 +27,8 @@ namespace com.m365may.entities {
                 Start = new CalDateTime(this.startsAt ??= DateTime.Now.ToUniversalTime()),
                 End = new CalDateTime(this.endsAt ??= DateTime.Now.ToUniversalTime().AddMinutes(30)),
                 Summary = this.title,
-                Description = this.description
+                Description = this.description,
+                Url = new Uri(this.url)
             });
 
             var serializer = new CalendarSerializer(calendar);

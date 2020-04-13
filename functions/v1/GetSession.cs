@@ -113,7 +113,10 @@ namespace com.m365may
             if (foundSessions.Count() > 0)
             {
                 Session session = foundSessions.First();
-                if (appendUrlToDescription) session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                if (appendUrlToDescription) {
+                    session.description += $"\r\n\r\n{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                    session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                }
                 return session;
             }
 
