@@ -23,8 +23,8 @@ namespace com.m365may.entities {
 
             var calendar = new Calendar();
             calendar.Events.Add(new CalendarEvent {
-                Start = new CalDateTime(this.startsAt ??= DateTime.Now),
-                End = new CalDateTime(this.endsAt ??= DateTime.Now.AddMinutes(30)),
+                Start = new CalDateTime(this.startsAt ??= DateTime.Now.ToUniversalTime()),
+                End = new CalDateTime(this.endsAt ??= DateTime.Now.ToUniversalTime().AddMinutes(30)),
                 Summary = this.title,
                 Description = this.description
             });
