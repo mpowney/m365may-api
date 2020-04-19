@@ -21,7 +21,7 @@ namespace com.m365may.v1
     public static class GetSession
     {
         [FunctionName("GetSessionById")]
-        public static async Task<IActionResult> Run(
+        public static async Task<IActionResult> RunGetSessionById (
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "_api/v1/session/{id}")] HttpRequest req,
             [Table(TableNames.Cache)] CloudTable cacheTable,
             string id,
@@ -43,16 +43,12 @@ namespace com.m365may.v1
                 .AddEnvironmentVariables()
                 .Build();
 
-            string cacheKey = $"sessions";
-            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey, new TimeSpan(0, 1, 0));
+            string jsonData = await GetSession.GetAllSessions(cacheTable, log, context);
 
-            if (entity != null) {
-                log.LogInformation("Returning sessions info from cache entity");
-
-                string jsonData = entity.GetValue();
+            if (jsonData != null) {
 
                 #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link);
+                Session? foundSession = GetSession.ById(jsonData, id, req, true);
                 #nullable disable
                 if (foundSession != null) {
                     return ical ? 
@@ -67,8 +63,30 @@ namespace com.m365may.v1
                 log.LogError($"Session {id} not found, returning 404");
                 return new NotFoundResult();
 
+            }
+
+            log.LogCritical($"Sessions data can't be found");
+            return new BadRequestObjectResult($"Sessions data can't be found");
+
+        }
+
+        public static async Task<string?> GetAllSessions(CloudTable cacheTable, ILogger log, ExecutionContext context) {
+
+            string cacheKey = $"sessions";
+            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey, new TimeSpan(0, 1, 0));
+
+            if (entity != null) {
+                log.LogInformation("Returning sessions info from cache entity");
+
+                return entity.GetValue();
 
             }
+
+            var config = new ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
 
             string url = config.GetValue<string>("SESSIONIZE_SESSIONS_URL");
             log.LogInformation($"Looking up SESSIONIZE_SESSIONS_URL {url}.");
@@ -76,39 +94,23 @@ namespace com.m365may.v1
             var client = new HttpClient();
             var postResponse = await client.GetAsync(url);
 
-            if (postResponse.StatusCode == HttpStatusCode.OK) {
+            if (postResponse.IsSuccessStatusCode) {
 
                 log.LogTrace($"SESSIONIZE_SESSIONS_URL {url} returned OK");
-                var jsonData = await postResponse.Content.ReadAsStringAsync();
-
-                bool success = await CacheEntity.put(cacheTable, CacheType.Sessions, cacheKey, jsonData);
-                log.LogInformation($"Populated sessions cache success: {success}");
-
-                #nullable enable
-                Session? foundSession = GetSession.ById(jsonData, id, req, link);
-                #nullable disable
-                if (foundSession != null) {
-                    return ical ? 
-                            (IActionResult)new ContentResult {
-                                ContentType = "text/calendar",
-                                Content = foundSession.ToIcalString(config["ICAL_FORMAT_TITLE"], config["ICAL_FORMAT_DESCRIPTION"], config["ICAL_FORMAT_UID"])
-                            }
-                        :
-                            new OkObjectResult(foundSession);
-                }
-
-                log.LogError($"Session {id} not found, returning 404");
-                return new NotFoundResult();
+                return await postResponse.Content.ReadAsStringAsync();
 
             }
+            else {
+                log.LogCritical($"SESSIONIZE_SESSIONS_URL {url} returned status {postResponse.StatusCode}");
+            }
 
-            log.LogCritical($"Error status returned by sessionize url {url}: {postResponse.StatusCode}");
-            return new BadRequestObjectResult($"Bad result: {postResponse.StatusCode}");
+            return null;
 
         }
 
+
         #nullable enable
-        private static Session? ById(string jsonData, string? id, HttpRequest req, bool addUrl) {
+        public static Session? ById(string jsonData, string? id, HttpRequest req, bool addUrl) {
         #nullable disable
 
             if (id == null) {

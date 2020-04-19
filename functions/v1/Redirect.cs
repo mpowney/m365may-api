@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -61,6 +63,40 @@ namespace com.m365may.v1
                     return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.RedirectTo}");
                 
                 return new RedirectResult($"{redirect.RedirectTo}");
+
+            }
+
+            Session foundSession = GetSession.ById(await GetSession.GetAllSessions(cacheTable, log, context), id, req, false);
+
+            if (foundSession != null) {
+
+                string holdingPageUrl = $"{config["HOLDPAGE_SESSION"]}";
+
+                log.LogInformation($"Looking up holding page content: {holdingPageUrl}.");
+
+                var client = new HttpClient();
+                var getResponse = await client.GetAsync(holdingPageUrl);
+                if (getResponse.IsSuccessStatusCode) {
+                    
+                    string value = await getResponse.Content.ReadAsStringAsync();
+
+                    value = value.Replace("{title}", foundSession.title ??= string.Empty);
+                    value = value.Replace("{description}", foundSession.description ??= string.Empty );
+                    value = value.Replace("{id}", foundSession.id ??= string.Empty);
+                    value = value.Replace("{url}", foundSession.url ??= string.Empty);
+                    value = value.Replace("{speakers}", string.Join(", ", foundSession.speakers.Select(speaker => speaker.name)));
+
+                    return new ContentResult {
+                        ContentType = "text/html; charset=UTF-8",
+                        Content = value
+                    };
+
+                }
+                else {
+
+                    return new NotFoundObjectResult($"{config["HOLDPAGE_SESSION"]} template page not found");
+
+                }
 
             }
 
