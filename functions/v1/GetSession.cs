@@ -16,14 +16,14 @@ using System.Collections.Generic;
 using System.Linq;
 using com.m365may.entities;
 
-namespace com.m365may
+namespace com.m365may.v1
 {
     public static class GetSession
     {
         [FunctionName("GetSessionById")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "_api/v1/session/{id}")] HttpRequest req,
-            [Table("Cache")] CloudTable cacheTable,
+            [Table(TableNames.Cache)] CloudTable cacheTable,
             string id,
             ILogger log,
             ExecutionContext context)
