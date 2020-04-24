@@ -43,6 +43,7 @@ namespace com.m365may.entities
         public string RedirectTo { get; set; }
         public int ClickCount { get; set; }
         public string GeoCount { get; set; }
+        public int? StartRedirectingMinutes { get; set; }
         public static async Task<RedirectEntity> get(CloudTable redirectTable, string key) {
 
             await redirectTable.CreateIfNotExistsAsync();

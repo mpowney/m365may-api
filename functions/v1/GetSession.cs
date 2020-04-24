@@ -72,8 +72,18 @@ namespace com.m365may.v1
 
         public static async Task<string?> GetAllSessions(CloudTable cacheTable, ILogger log, ExecutionContext context) {
 
+            var config = new ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+            int sessionizeCacheMinutes = 0;
+            bool foundConfig = int.TryParse(config["SESSIONIZE_CACHE_MINUTES"], out sessionizeCacheMinutes);
+            if (!foundConfig) sessionizeCacheMinutes = 1;
+
             string cacheKey = $"sessions";
-            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey, new TimeSpan(0, 1, 0));
+            CacheEntity entity = await CacheEntity.get(cacheTable, CacheType.Sessions, cacheKey, new TimeSpan(0, sessionizeCacheMinutes, 0));
 
             if (entity != null) {
                 log.LogInformation("Returning sessions info from cache entity");
@@ -81,12 +91,6 @@ namespace com.m365may.v1
                 return entity.GetValue();
 
             }
-
-            var config = new ConfigurationBuilder()
-                .SetBasePath(context.FunctionAppDirectory)
-                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables()
-                .Build();
 
             string url = config.GetValue<string>("SESSIONIZE_SESSIONS_URL");
             log.LogInformation($"Looking up SESSIONIZE_SESSIONS_URL {url}.");
@@ -96,8 +100,11 @@ namespace com.m365may.v1
 
             if (postResponse.IsSuccessStatusCode) {
 
+                string sessionizeContent = await postResponse.Content.ReadAsStringAsync();
+
+                await CacheEntity.put(cacheTable, CacheType.Sessions, cacheKey, sessionizeContent, 60);
                 log.LogTrace($"SESSIONIZE_SESSIONS_URL {url} returned OK");
-                return await postResponse.Content.ReadAsStringAsync();
+                return sessionizeContent;
 
             }
             else {

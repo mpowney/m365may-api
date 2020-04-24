@@ -14,6 +14,7 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using com.m365may.entities;
+using com.m365may.utils;
 
 namespace com.m365may.v1
 {
@@ -24,12 +25,16 @@ namespace com.m365may.v1
     }
 
     public static partial class QueueNames {
+
         public const string ProcessRedirectClicks = "ProcessRedirectClicks";
         public const string ProcessRedirectClicksForGeo = "ProcessRedirectClicksForGeo";
     }
 
     public static class Redirect
     {
+
+        const string EMBED_JS = "";
+
         [FunctionName("RedirectSession")]
         public static async Task<IActionResult> RunRedirectSession(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_redirect/session/{id}")] HttpRequest req,
@@ -50,25 +55,42 @@ namespace com.m365may.v1
                 .Build();
 
             RedirectEntity redirect = await RedirectEntity.get(sessionRedirectTable, id);
+            Session foundSession = GetSession.ById(await GetSession.GetAllSessions(cacheTable, log, context), id, req, false);
+            
+            if (redirect != null && redirect.RedirectTo != null) {
 
-            if (redirect != null) {
+                int startRedirectingMinutes = (redirect.StartRedirectingMinutes == null) ? -5 : redirect.StartRedirectingMinutes.Value;
 
-                processRedirectQueue.Add(new HttpRequestEntity(req));
+                if (foundSession != null && foundSession.startsAt != null) {
+                    
+                    DateTime startRedirecting = foundSession.startsAt.Value.AddMinutes(startRedirectingMinutes);
+                    DateTime now = DateTime.Now.ToUniversalTime();
+                    
+                    if (DateTime.Compare(now, startRedirecting) >= 0) {
+                        log.LogInformation($"Start redirecting condition met for {req.Path} - redirect time was {startRedirecting} (current time {now})");
 
-                if (redirect.RedirectTo == null) {
-                    return new NotFoundObjectResult($"Redirect for key {redirect.RowKey} not specified.");
+                        if (req.QueryString.ToString().IndexOf("check") < 0) {
+                            processRedirectQueue.Add(new HttpRequestEntity(req));
+                        }
+
+                        if (redirect.RedirectTo.StartsWith("/") && redirect.RedirectTo.Substring(1, 1) != "/")
+                            return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.RedirectTo}", false);
+                        
+                        return new RedirectResult($"{redirect.RedirectTo}", false);
+
+                    }
+                    else {
+                        log.LogInformation($"Start redirecting condition not met for {req.Path} - waiting until {startRedirecting} (current time {now})");
+                    }
                 }
-
-                if (redirect.RedirectTo.StartsWith("/") && redirect.RedirectTo.Substring(1, 1) != "/")
-                    return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.RedirectTo}");
-                
-                return new RedirectResult($"{redirect.RedirectTo}");
 
             }
 
-            Session foundSession = GetSession.ById(await GetSession.GetAllSessions(cacheTable, log, context), id, req, false);
-
             if (foundSession != null) {
+
+                if (req.QueryString.ToString().IndexOf("check") >= 0) {
+                    return new OkObjectResult($"Session found, wait for redirect");
+                }
 
                 string holdingPageUrl = $"{config["HOLDPAGE_SESSION"]}";
 
@@ -85,6 +107,8 @@ namespace com.m365may.v1
                     value = value.Replace("{id}", foundSession.id ??= string.Empty);
                     value = value.Replace("{url}", foundSession.url ??= string.Empty);
                     value = value.Replace("{speakers}", string.Join(", ", foundSession.speakers.Select(speaker => speaker.name)));
+                    value = value.Replace("{redirect-js}", Constants.REDIRECT_JS.Replace("{url}", $"{req.Path}?check"));
+                    value = value.Replace("{embed-js}", EMBED_JS);
 
                     return new ContentResult {
                         ContentType = "text/html; charset=UTF-8",
@@ -150,7 +174,7 @@ namespace com.m365may.v1
                 .AddEnvironmentVariables()
                 .Build();
 
-            string ipLookupUrl = $"{config["FREEGEOIP_HOST"]}/json/{queuedHttpRequest.RemoteIpAddress}";
+            string ipLookupUrl = $"{config["FREEGEOIP_HOST"] ??= "https://freegeoip.app"}/json/{queuedHttpRequest.RemoteIpAddress}";
 
             log.LogInformation($"Looking up freegeoip: {ipLookupUrl}.");
 
