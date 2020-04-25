@@ -71,12 +71,16 @@ namespace com.m365may.v1
 
                         if (req.QueryString.ToString().IndexOf("check") < 0) {
                             processRedirectQueue.Add(new HttpRequestEntity(req));
+
+                            if (redirect.RedirectTo.StartsWith("/") && redirect.RedirectTo.Substring(1, 1) != "/")
+                                return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.RedirectTo}", false);
+                            
+                            return new RedirectResult($"{redirect.RedirectTo}", false);
+
                         }
 
-                        if (redirect.RedirectTo.StartsWith("/") && redirect.RedirectTo.Substring(1, 1) != "/")
-                            return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.RedirectTo}", false);
-                        
-                        return new RedirectResult($"{redirect.RedirectTo}", false);
+                        return new AcceptedResult();
+
 
                     }
                     else {
