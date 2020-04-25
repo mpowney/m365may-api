@@ -37,7 +37,7 @@ namespace com.m365may.v1
 
         [FunctionName("RedirectSession")]
         public static async Task<IActionResult> RunRedirectSession(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_redirect/session/{id}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "redirect/session/{id}")] HttpRequest req,
             [Table(TableNames.Cache)] CloudTable cacheTable,
             [Table(TableNames.RedirectSessions)] CloudTable sessionRedirectTable,
             [Queue(QueueNames.ProcessRedirectClicks), StorageAccount("AzureWebJobsStorage")] ICollector<HttpRequestEntity> processRedirectQueue,
@@ -87,7 +87,7 @@ namespace com.m365may.v1
                         log.LogInformation($"Start redirecting condition not met for {req.Path} - waiting until {startRedirecting} (current time {now})");
 
                         if (req.QueryString.ToString().IndexOf("check") >= 0) {
-                            return new OkObjectResult($"Session found, waiting until {startRedirecting} before redirecting (current time {now}");
+                            return new OkObjectResult($"Session found, waiting until {startRedirecting} before redirecting (current time {now})");
                         }
 
                     }
@@ -163,7 +163,7 @@ namespace com.m365may.v1
 
             HttpRequestEntity queuedHttpRequest = JsonConvert.DeserializeObject<HttpRequestEntity>(queuedHttpRequestString);
 
-            MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/_redirect/session/(\\d+)", RegexOptions.IgnoreCase);
+            MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)", RegexOptions.IgnoreCase);
             if (matches.Count > 0) {
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
@@ -206,7 +206,7 @@ namespace com.m365may.v1
             var getResponse = await client.GetAsync(ipLookupUrl);
             if (getResponse.StatusCode == HttpStatusCode.OK) {
 
-                MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/_redirect/session/(\\d+)", RegexOptions.IgnoreCase);
+                MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)", RegexOptions.IgnoreCase);
                 if (matches.Count > 0) {
 
                     string ipResponseString = await getResponse.Content.ReadAsStringAsync();

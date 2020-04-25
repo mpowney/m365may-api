@@ -22,7 +22,7 @@ namespace com.m365may.v1
     {
         [FunctionName("GetSessionById")]
         public static async Task<IActionResult> RunGetSessionById (
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "_api/v1/session/{id}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "calendar/session/{id}")] HttpRequest req,
             [Table(TableNames.Cache)] CloudTable cacheTable,
             string id,
             ILogger log,
@@ -133,7 +133,7 @@ namespace com.m365may.v1
             {
                 Session session = foundSessions.First();
 
-                if (addUrl) session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/_redirect/session/{id}";
+                if (addUrl) session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/redirect/session/{id}";
 
                 return session;
             }
