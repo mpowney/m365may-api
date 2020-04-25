@@ -87,6 +87,15 @@ namespace com.m365may.v1
                         }
 
                     }
+                } else {
+
+                    log.LogInformation($"Start redirecting condition not met for {req.Path} - session has no start time)");
+
+                    if (req.QueryString.ToString().IndexOf("check") >= 0) {
+                        return new OkObjectResult($"Session found, but has no start time in sessionize");
+                    }
+
+
                 }
 
             }
