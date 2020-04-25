@@ -48,6 +48,10 @@ namespace com.m365may.v1
 
             id = id ?? req.Query["id"];
 
+            int numericId = 0;
+            int.TryParse(id, out numericId);
+            if (numericId > 0) id = numericId.ToString();
+
             var config = new ConfigurationBuilder()
                 .SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)

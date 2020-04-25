@@ -37,6 +37,10 @@ namespace com.m365may.v1
             dynamic data = JsonConvert.DeserializeObject(requestBody);
             id = id ?? data?.id;
 
+            int numericId = 0;
+            int.TryParse(id, out numericId);
+            if (numericId > 0) id = numericId.ToString();
+
             var config = new ConfigurationBuilder()
                 .SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
