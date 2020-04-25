@@ -50,7 +50,7 @@ namespace com.m365may.utils {
         load(url, 'GET', function(xhr) {
             console.log('{url}', xhr.status);
         });
-    }, 10000);
+    }, {redirect-delay});
 
 </script>";
 

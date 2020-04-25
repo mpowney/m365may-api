@@ -102,12 +102,18 @@ namespace com.m365may.v1
                     
                     string value = await getResponse.Content.ReadAsStringAsync();
 
+                    int redirectDelay = 10;
+                    bool foundConfig = int.TryParse(config["REDIRECT_DELAY"], out redirectDelay);
+                    if (!foundConfig) redirectDelay = 10;
+
+
+
                     value = value.Replace("{title}", foundSession.title ??= string.Empty);
                     value = value.Replace("{description}", foundSession.description ??= string.Empty );
                     value = value.Replace("{id}", foundSession.id ??= string.Empty);
                     value = value.Replace("{url}", foundSession.url ??= string.Empty);
                     value = value.Replace("{speakers}", string.Join(", ", foundSession.speakers.Select(speaker => speaker.name)));
-                    value = value.Replace("{redirect-js}", Constants.REDIRECT_JS.Replace("{url}", $"{req.Path}?check"));
+                    value = value.Replace("{redirect-js}", Constants.REDIRECT_JS.Replace("{url}", $"{req.Path}?check")).Replace("{redirect-delay}", (redirectDelay * 1000).ToString());
                     value = value.Replace("{embed-js}", EMBED_JS);
 
                     return new ContentResult {
