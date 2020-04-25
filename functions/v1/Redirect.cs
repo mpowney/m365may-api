@@ -64,7 +64,7 @@ namespace com.m365may.v1
                 if (foundSession != null && foundSession.startsAt != null) {
                     
                     DateTime startRedirecting = foundSession.startsAt.Value.AddMinutes(startRedirectingMinutes);
-                    DateTime now = DateTime.Now.ToUniversalTime();
+                    DateTime now = DateTime.Now();
                     
                     if (DateTime.Compare(now, startRedirecting) <= 0) {
                         log.LogInformation($"Start redirecting condition met for {req.Path} - redirect time was {startRedirecting} (current time {now})");
