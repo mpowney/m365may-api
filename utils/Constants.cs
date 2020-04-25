@@ -46,7 +46,8 @@ namespace com.m365may.utils {
         xhr.send('');
     }
     window.setInterval(function() {
-        load('{url}', 'GET', function(xhr) {
+        var url = '{url}&' + new Date().getTime();
+        load(url, 'GET', function(xhr) {
             console.log('{url}', xhr.status);
         });
     }, 10000);
