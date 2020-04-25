@@ -83,7 +83,7 @@ namespace com.m365may.v1
                         log.LogInformation($"Start redirecting condition not met for {req.Path} - waiting until {startRedirecting} (current time {now})");
 
                         if (req.QueryString.ToString().IndexOf("check") >= 0) {
-                            return new OkObjectResult($"Session found, waiting until {startRedirecting} before redirecting");
+                            return new OkObjectResult($"Session found, waiting until {startRedirecting} before redirecting (current time {now}");
                         }
 
                     }
