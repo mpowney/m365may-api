@@ -134,6 +134,7 @@ namespace com.m365may.v1
                 Session session = foundSessions.First();
 
                 if (addUrl) session.url = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/redirect/session/{id}";
+                if (addUrl) session.ical = $"{(req.IsHttps ? "https:" : "http:")}//{req.Host}/calendar/session/{id}?ical";
 
                 return session;
             }

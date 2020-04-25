@@ -7,6 +7,7 @@ namespace com.m365may.entities
 
     public static class CacheType {
         public static string Sessions { get { return "sessions"; } }
+        public static string Speakers { get { return "speakers"; } }
     }
 
     public class CacheEntity : TableEntity

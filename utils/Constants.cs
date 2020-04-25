@@ -2,6 +2,13 @@ namespace com.m365may.utils {
 
     class Constants {
 
+        public const string SPEAKER_HTML = @"
+                {profilePicture}<br/>
+                {fullName}</br>
+                {tagLine}<br/>
+                {bio}
+";
+
         public const string REDIRECT_JS = @"
 <script>
 

@@ -55,7 +55,7 @@ namespace com.m365may.v1
                 .Build();
 
             RedirectEntity redirect = await RedirectEntity.get(sessionRedirectTable, id);
-            Session foundSession = GetSession.ById(await GetSession.GetAllSessions(cacheTable, log, context), id, req, false);
+            Session foundSession = GetSession.ById(await GetSession.GetAllSessions(cacheTable, log, context), id, req, true);
             
             if (redirect != null && redirect.RedirectTo != null) {
 
@@ -124,13 +124,18 @@ namespace com.m365may.v1
                     bool foundConfig = int.TryParse(config["REDIRECT_DELAY"], out redirectDelay);
                     if (!foundConfig) redirectDelay = 10;
 
-
+                    string speakerData = (value.IndexOf("{speaker-profiles}") >= 0) ? await GetSpeaker.GetAllSpeakers(cacheTable, log, context) : string.Empty;
 
                     value = value.Replace("{title}", foundSession.title ??= string.Empty);
                     value = value.Replace("{description}", foundSession.description ??= string.Empty );
                     value = value.Replace("{id}", foundSession.id ??= string.Empty);
                     value = value.Replace("{url}", foundSession.url ??= string.Empty);
+                    value = value.Replace("{ical}", foundSession.ical ??= string.Empty);
                     value = value.Replace("{speakers}", string.Join(", ", foundSession.speakers.Select(speaker => speaker.name)));
+                    value = value.Replace("{speaker-profiles}", string.Join("", foundSession.speakers.Select(speaker => { 
+                        SpeakerInformation foundSpeaker = GetSpeaker.ById(speakerData, speaker.id, req, false);
+                        return SpeakerInformation.ProcessSpeakerTokens(Constants.SPEAKER_HTML, foundSpeaker);
+                    })));
                     value = value.Replace("{redirect-js}", Constants.REDIRECT_JS.Replace("{url}", $"{req.Path}?check")).Replace("{redirect-delay}", (redirectDelay * 1000).ToString());
                     value = value.Replace("{embed-js}", EMBED_JS);
 
