@@ -59,11 +59,11 @@ namespace com.m365may.entities
             );
         }
 
-        public static async Task<CacheEntity> get(CloudTable cacheTable, string cacheType, string key, TimeSpan cacheExpiry) {
+        public static async Task<CacheEntity> get(CloudTable cacheTable, string cacheType, string key, TimeSpan? cacheExpiry) {
 
             await cacheTable.CreateIfNotExistsAsync();
 
-            TimeSpan expiry = cacheExpiry == null ? new TimeSpan(365, 0, 0, 0) : cacheExpiry;
+            TimeSpan expiry = cacheExpiry == null ? new TimeSpan(365, 0, 0, 0) : (TimeSpan)cacheExpiry;
             
             TableQuery<CacheEntity> rangeQuery = new TableQuery<CacheEntity>().Where(
                 TableQuery.CombineFilters(
