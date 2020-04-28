@@ -32,6 +32,28 @@ namespace com.m365may.v1
 
         }
 
+        [FunctionName("GetAllSpeakers")]
+        public static async Task<IActionResult> RunGetAllSpeakers (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "data/speakers")] HttpRequest req,
+            [Table(TableNames.Cache)] CloudTable cacheTable,
+            ILogger log,
+            ExecutionContext context)
+        {
+
+            string speakerData = await GetSpeaker.GetAllSpeakers(cacheTable, log, context);
+            if (speakerData != null) {
+                return new ContentResult {
+                    ContentType = "application/json",
+                    Content = speakerData
+                };
+            }
+            else {
+                return new NotFoundResult();
+            }
+
+        }
+
+
         [FunctionName("GetSpeaker")]
         public static async Task<IActionResult> RunGetSpeakerById (
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "data/speaker/{key}")] HttpRequest req,
