@@ -38,6 +38,9 @@ namespace com.m365may.entities {
                 Uid = ProcessSessionTokens(UidFormat, this)
             });
 
+            calendar.Events[0].Start.HasTime = true;
+            calendar.Events[0].End.HasTime = true;
+
             var serializer = new CalendarSerializer(calendar);
 
             return serializer.SerializeToString();
