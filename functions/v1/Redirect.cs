@@ -115,6 +115,7 @@ namespace com.m365may.v1
                 }
 
                 string holdingPageUrl = $"{config["HOLDPAGE_SESSION"]}";
+                holdingPageUrl = holdingPageUrl.Replace("{id}", foundSession.id ??= string.Empty);
 
                 log.LogInformation($"Looking up holding page content: {holdingPageUrl}.");
 
