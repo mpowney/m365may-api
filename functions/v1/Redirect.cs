@@ -37,7 +37,7 @@ namespace com.m365may.v1
 
         [FunctionName("RedirectSession")]
         public static async Task<IActionResult> RunRedirectSession(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "redirect/session/{id}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "redirect/session/{id}/")] HttpRequest req,
             [Table(TableNames.Cache)] CloudTable cacheTable,
             [Table(TableNames.RedirectSessions)] CloudTable sessionRedirectTable,
             [Queue(QueueNames.ProcessRedirectClicks), StorageAccount("AzureWebJobsStorage")] ICollector<HttpRequestEntity> processRedirectQueue,
@@ -129,20 +129,22 @@ namespace com.m365may.v1
                     bool foundConfig = int.TryParse(config["REDIRECT_DELAY"], out redirectDelay);
                     if (!foundConfig) redirectDelay = 10;
 
-                    string speakerData = (value.IndexOf("{speaker-profiles}") >= 0) ? await GetSpeaker.GetAllSpeakers(cacheTable, log, context) : string.Empty;
-
                     value = value.Replace("{title}", foundSession.title ??= string.Empty);
                     value = value.Replace("{description}", foundSession.description ??= string.Empty );
                     value = value.Replace("{id}", foundSession.id ??= string.Empty);
                     value = value.Replace("{url}", foundSession.url ??= string.Empty);
                     value = value.Replace("{ical}", foundSession.ical ??= string.Empty);
                     value = value.Replace("{speakers}", string.Join(", ", foundSession.speakers.Select(speaker => speaker.name)));
-                    value = value.Replace("{speaker-profiles}", string.Join("", foundSession.speakers.Select(speaker => { 
-                        SpeakerInformation foundSpeaker = GetSpeaker.ById(speakerData, speaker.id, req, false);
-                        return SpeakerInformation.ProcessSpeakerTokens(Constants.SPEAKER_HTML, foundSpeaker);
-                    })));
                     value = value.Replace("{redirect-js}", Constants.REDIRECT_JS.Replace("{url}", $"{req.Path}?check")).Replace("{redirect-delay}", (redirectDelay * 1000).ToString());
                     value = value.Replace("{embed-js}", EMBED_JS);
+
+                    if (value.IndexOf("{speaker-profiles}") >= 0) {
+                        string speakerData = await GetSpeaker.GetAllSpeakers(cacheTable, log, context);
+                        value = value.Replace("{speaker-profiles}", string.Join("", foundSession.speakers.Select(speaker => { 
+                            SpeakerInformation foundSpeaker = GetSpeaker.ById(speakerData, speaker.id, req, false);
+                            return SpeakerInformation.ProcessSpeakerTokens(Constants.SPEAKER_HTML, foundSpeaker);
+                        })));
+                    }
 
                     return new ContentResult {
                         ContentType = "text/html; charset=UTF-8",
@@ -173,7 +175,7 @@ namespace com.m365may.v1
 
             HttpRequestEntity queuedHttpRequest = JsonConvert.DeserializeObject<HttpRequestEntity>(queuedHttpRequestString);
 
-            MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)", RegexOptions.IgnoreCase);
+            MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)/", RegexOptions.IgnoreCase);
             if (matches.Count > 0) {
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
@@ -216,7 +218,7 @@ namespace com.m365may.v1
             var getResponse = await client.GetAsync(ipLookupUrl);
             if (getResponse.StatusCode == HttpStatusCode.OK) {
 
-                MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)", RegexOptions.IgnoreCase);
+                MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)/", RegexOptions.IgnoreCase);
                 if (matches.Count > 0) {
 
                     string ipResponseString = await getResponse.Content.ReadAsStringAsync();
