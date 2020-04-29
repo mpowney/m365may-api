@@ -29,20 +29,25 @@ namespace com.m365may.entities
     public class RedirectEntity : TableEntity
     {
         public RedirectEntity() {}
-        public RedirectEntity(string key, string redirectTo, int clickCount, IDictionary<string, int> geoCount) {
+        public RedirectEntity(string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount) {
             
             string _geoCount = JsonConvert.SerializeObject(geoCount);
+            string _calendarGeoCount = JsonConvert.SerializeObject(calendarGeoCount);
 
             this.PartitionKey = "";
             this.RowKey = key;
             this.RedirectTo = redirectTo;
             this.ClickCount = clickCount;
+            this.CalendarClickCount = calendarClickCount;
             this.GeoCount = _geoCount;
+            this.CalendarGeoCount = _calendarGeoCount;
             
         }
         public string RedirectTo { get; set; }
         public int ClickCount { get; set; }
+        public int CalendarClickCount { get; set; }
         public string GeoCount { get; set; }
+        public string CalendarGeoCount { get; set; }
         public int? StartRedirectingMinutes { get; set; }
         public static async Task<RedirectEntity> get(CloudTable redirectTable, string key) {
 
@@ -67,13 +72,13 @@ namespace com.m365may.entities
 
         }
 
-        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, int clickCount, IDictionary<string, int> geoCount) {
+        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount) {
      
             await redirectTable.CreateIfNotExistsAsync();
             
             try {
 
-                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, clickCount, geoCount);
+                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, clickCount, calendarClickCount, geoCount, calendarGeoCount);
                 TableOperation insertCacheOperation = TableOperation.InsertOrMerge(newEntity);
                 await redirectTable.ExecuteAsync(insertCacheOperation);
 

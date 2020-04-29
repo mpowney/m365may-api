@@ -24,6 +24,7 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RunGetSessionById (
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "calendar/session/{id}")] HttpRequest req,
             [Table(TableNames.Cache)] CloudTable cacheTable,
+            [Queue(QueueNames.ProcessRedirectClicks), StorageAccount("AzureWebJobsStorage")] ICollector<HttpRequestEntity> processRedirectQueue,
             string id,
             ILogger log,
             ExecutionContext context)
@@ -55,6 +56,9 @@ namespace com.m365may.v1
                 Session? foundSession = GetSession.ById(jsonData, id, req, true);
                 #nullable disable
                 if (foundSession != null) {
+
+                    processRedirectQueue.Add(new HttpRequestEntity(req));
+
                     return ical ? 
                             (IActionResult)new ContentResult {
                                 ContentType = "text/calendar",

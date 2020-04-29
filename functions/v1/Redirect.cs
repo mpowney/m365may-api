@@ -180,7 +180,21 @@ namespace com.m365may.v1
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
                 redirectEntity.ClickCount++;
-                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"));
+                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"));
+                processRedirectQueueForGeo.Add(queuedHttpRequest);
+    
+                log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                return;
+
+            }
+
+            MatchCollection sessionMatches = Regex.Matches(queuedHttpRequest.Path, "/calendar/session/(\\d+)", RegexOptions.IgnoreCase);
+            if (sessionMatches.Count > 0) {
+
+                RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, sessionMatches[0].Groups[1].Value);
+                redirectEntity.CalendarClickCount++;
+                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"));
                 processRedirectQueueForGeo.Add(queuedHttpRequest);
     
                 log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -245,9 +259,44 @@ namespace com.m365may.v1
 
                     log.LogInformation($" GeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                     
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, _geoCount);
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, _geoCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.CalendarGeoCount));
         
                     log.LogInformation($"Successfully processed geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                    return;
+
+                }
+
+                MatchCollection calendarMatches = Regex.Matches(queuedHttpRequest.Path, "/calendar/session/(\\d+)", RegexOptions.IgnoreCase);
+                if (calendarMatches.Count > 0) {
+
+                    string ipResponseString = await getResponse.Content.ReadAsStringAsync();
+                    dynamic ipResponse = JsonConvert.DeserializeObject(ipResponseString);
+                    GeoEntity geoEntity = new GeoEntity(ipResponse);
+                    string geoEntityString = JsonConvert.SerializeObject(geoEntity);
+
+                    RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, calendarMatches[0].Groups[1].Value);
+                    if (redirectEntity.GeoCount == null) {
+                        log.LogInformation($"Adding CalendarGeoCount property to redirect entity {queuedHttpRequest.Path}");
+                        // redirectEntity.GeoCount = new Dictionary<string, int>();
+                    }
+                    
+                    Dictionary<string, int> _calendarGeoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount);
+                    if (_calendarGeoCount.ContainsKey(geoEntityString)) {
+                        log.LogInformation($"Incrementing CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
+                        
+                        _calendarGeoCount[geoEntityString] = _calendarGeoCount[geoEntityString] + 1;
+                    }
+                    else {
+                        log.LogInformation($"Creating CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
+                        _calendarGeoCount.Add(geoEntityString, 1);
+                    }
+
+                    log.LogInformation($" CalendarGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
+                    
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.GeoCount), _calendarGeoCount);
+        
+                    log.LogInformation($"Successfully processed calendar geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
                     return;
 
