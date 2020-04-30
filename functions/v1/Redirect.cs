@@ -117,7 +117,11 @@ namespace com.m365may.v1
                 string holdingPageUrl = $"{config["HOLDPAGE_SESSION"]}";
                 holdingPageUrl = holdingPageUrl.Replace("{id}", foundSession.id ??= string.Empty);
 
-                CacheEntity cachedSessionPage = await CacheEntity.get(cacheTable, CacheType.Session, $"session-{id}", new TimeSpan(0, 10, 0));
+                int holdpageCacheMinutes = 0;
+                bool foundConfig = int.TryParse(config["HOLDPAGE_CACHE_MINUTES"], out holdpageCacheMinutes);
+                if (!foundConfig) holdpageCacheMinutes = 10;
+
+                CacheEntity cachedSessionPage = await CacheEntity.get(cacheTable, CacheType.Session, $"session-{id}", new TimeSpan(0, holdpageCacheMinutes, 0));
 
                 if (cachedSessionPage != null) {
                     string value = cachedSessionPage.GetValue();
