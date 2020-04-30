@@ -6,6 +6,7 @@ namespace com.m365may.entities
 {
 
     public static class CacheType {
+        public static string Session { get { return "session"; } }
         public static string Sessions { get { return "sessions"; } }
         public static string Speakers { get { return "speakers"; } }
     }

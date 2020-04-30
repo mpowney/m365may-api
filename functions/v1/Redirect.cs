@@ -117,6 +117,17 @@ namespace com.m365may.v1
                 string holdingPageUrl = $"{config["HOLDPAGE_SESSION"]}";
                 holdingPageUrl = holdingPageUrl.Replace("{id}", foundSession.id ??= string.Empty);
 
+                CacheEntity cachedSessionPage = await CacheEntity.get(cacheTable, CacheType.Session, $"session-{id}", new TimeSpan(0, 10, 0));
+
+                if (cachedSessionPage != null) {
+                    string value = cachedSessionPage.GetValue();
+
+                    return new ContentResult {
+                        ContentType = "text/html; charset=UTF-8",
+                        Content = value
+                    };
+                }
+
                 log.LogInformation($"Looking up holding page content: {holdingPageUrl}.");
 
                 var client = new HttpClient();
@@ -145,6 +156,8 @@ namespace com.m365may.v1
                             return SpeakerInformation.ProcessSpeakerTokens(Constants.SPEAKER_HTML, foundSpeaker);
                         })));
                     }
+
+                    await CacheEntity.put(cacheTable, CacheType.Session, $"session-{id}", value, 600);
 
                     return new ContentResult {
                         ContentType = "text/html; charset=UTF-8",
