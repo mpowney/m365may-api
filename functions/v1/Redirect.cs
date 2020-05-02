@@ -141,8 +141,8 @@ namespace com.m365may.v1
                     string value = await getResponse.Content.ReadAsStringAsync();
 
                     int redirectDelay = 10;
-                    bool foundConfig = int.TryParse(config["REDIRECT_DELAY"], out redirectDelay);
-                    if (!foundConfig) redirectDelay = 10;
+                    bool foundRedirectDelay = int.TryParse(config["REDIRECT_DELAY"], out redirectDelay);
+                    if (!foundRedirectDelay) redirectDelay = 10;
 
                     value = value.Replace("{title}", foundSession.title ??= string.Empty);
                     value = value.Replace("{description}", foundSession.description ??= string.Empty );
