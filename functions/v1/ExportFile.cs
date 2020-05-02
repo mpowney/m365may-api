@@ -4,7 +4,9 @@ using System;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
+using System.IO;
 using System.Net.Http;
 using com.m365may.entities;
 
@@ -13,6 +15,10 @@ namespace com.m365may.v1
     public static partial class QueueNames {
 
         public const string ProcessFileExports = "ProcessFileExports";
+    }
+    public static partial class FileExportTypes {
+
+        public const string AllVideos = "AllVideos";
     }
     public static class ExportFile {
 
@@ -56,12 +62,25 @@ namespace com.m365may.v1
                 "$web",
                 $"data/speakers_{now.ToString("u").Replace(" ", "_")}.json"));
 
+            processFileExportsQueue.Add(new FileExportEntity(
+                FileExportTypes.AllVideos,
+                "AzureStaticSiteStorage", 
+                "$web",
+                $"data/videos.json"));
+
+            processFileExportsQueue.Add(new FileExportEntity(
+                FileExportTypes.AllVideos, 
+                "AzureStaticSiteStorage", 
+                "$web",
+                $"data/videos_{now.ToString("u").Replace(" ", "_")}.json"));
+
 
         }
 
         [FunctionName("ProcessFileExports")]
-        public static async void ProcessRedirectClicks(
+        public static async void ProcessFileExports(
             [QueueTrigger(QueueNames.ProcessFileExports)] string processFileExportsQueue,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
             ILogger log,
             ExecutionContext context)
         {
@@ -74,8 +93,21 @@ namespace com.m365may.v1
                 .AddEnvironmentVariables()
                 .Build();
 
-            var client = new HttpClient();
-            var getResponse = await client.GetStreamAsync(queueFileExport.SourceUrl);
+            Stream stream = new MemoryStream();
+            if (queueFileExport.SourceUrl.StartsWith("https://") || queueFileExport.SourceUrl.StartsWith("http://")) {
+                var client = new HttpClient();
+                stream = await client.GetStreamAsync(queueFileExport.SourceUrl);
+            }
+            else {
+                if (queueFileExport.SourceUrl == FileExportTypes.AllVideos) {
+                    dynamic[] data = await GetVideo.All(redirectTable);
+                    stream = new MemoryStream();
+                    var writer = new StreamWriter(stream);
+                    writer.Write(JsonConvert.SerializeObject(data));
+                    writer.Flush();
+                    stream.Position = 0;
+                }
+            }
 
             // Create a BlobServiceClient object which will be used to create a container client
             BlobServiceClient blobServiceClient = new BlobServiceClient(config.GetValue<string>(queueFileExport.DestinationStorage));
@@ -86,14 +118,20 @@ namespace com.m365may.v1
             BlobClient blobClient = containerClient.GetBlobClient(queueFileExport.DestinationLocation);
 
             await blobClient.DeleteIfExistsAsync();
-            await blobClient.UploadAsync(getResponse);
+            await blobClient.UploadAsync(stream);
 
+            BlobHttpHeaders headers = new BlobHttpHeaders();
+            bool addHeaders = false;
+            
             if (queueFileExport.DestinationLocation.ToLower().EndsWith(".json")) {
-                await blobClient.SetHttpHeadersAsync(new BlobHttpHeaders { ContentType = "application/json" });
+                headers.ContentType = "application/json";
+                addHeaders = true;
             }
             if (config.GetValue<string>("FILE_EXPORT_CACHE_CONTROL") != null) {
-                await blobClient.SetHttpHeadersAsync(new BlobHttpHeaders { CacheControl = config.GetValue<string>("FILE_EXPORT_CACHE_CONTROL") });
+                headers.CacheControl = config.GetValue<string>("FILE_EXPORT_CACHE_CONTROL");
+                addHeaders = true;
             }
+            if (addHeaders) await blobClient.SetHttpHeadersAsync(headers);
 
             // log.LogError($"URL lookup {queueFileExport.SourceUrl} failed with status code {getResponse.StatusCode}");
             // throw new System.Exception($"URL lookup {queueFileExport.SourceUrl} failed with status code {getResponse.StatusCode}");

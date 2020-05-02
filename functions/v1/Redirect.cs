@@ -197,7 +197,7 @@ namespace com.m365may.v1
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
                 redirectEntity.ClickCount++;
-                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"));
+                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"), redirectEntity.VideoLink);
                 processRedirectQueueForGeo.Add(queuedHttpRequest);
     
                 log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -211,7 +211,7 @@ namespace com.m365may.v1
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, sessionMatches[0].Groups[1].Value);
                 redirectEntity.CalendarClickCount++;
-                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"));
+                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"), redirectEntity.VideoLink);
                 processRedirectQueueForGeo.Add(queuedHttpRequest);
     
                 log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -276,7 +276,7 @@ namespace com.m365may.v1
 
                     log.LogInformation($" GeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                     
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, _geoCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.CalendarGeoCount));
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, _geoCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.CalendarGeoCount), redirectEntity.VideoLink);
         
                     log.LogInformation($"Successfully processed geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
@@ -311,7 +311,7 @@ namespace com.m365may.v1
 
                     log.LogInformation($" CalendarGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                     
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.GeoCount), _calendarGeoCount);
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.GeoCount), _calendarGeoCount, redirectEntity.VideoLink);
         
                     log.LogInformation($"Successfully processed calendar geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 

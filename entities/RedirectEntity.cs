@@ -29,7 +29,7 @@ namespace com.m365may.entities
     public class RedirectEntity : TableEntity
     {
         public RedirectEntity() {}
-        public RedirectEntity(string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount) {
+        public RedirectEntity(string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, string? videoLink) {
             
             string _geoCount = JsonConvert.SerializeObject(geoCount);
             string _calendarGeoCount = JsonConvert.SerializeObject(calendarGeoCount);
@@ -41,6 +41,7 @@ namespace com.m365may.entities
             this.CalendarClickCount = calendarClickCount;
             this.GeoCount = _geoCount;
             this.CalendarGeoCount = _calendarGeoCount;
+            this.VideoLink = videoLink;
             
         }
         public string RedirectTo { get; set; }
@@ -49,6 +50,7 @@ namespace com.m365may.entities
         public string GeoCount { get; set; }
         public string CalendarGeoCount { get; set; }
         public int? StartRedirectingMinutes { get; set; }
+        public string? VideoLink { get; set; }
         public static async Task<RedirectEntity> get(CloudTable redirectTable, string key) {
 
             await redirectTable.CreateIfNotExistsAsync();
@@ -72,13 +74,34 @@ namespace com.m365may.entities
 
         }
 
-        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount) {
+        public static async Task<RedirectEntity[]> getAll(CloudTable redirectTable) {
+
+            await redirectTable.CreateIfNotExistsAsync();
+
+            TableQuery<RedirectEntity> rangeQuery = new TableQuery<RedirectEntity>();
+
+            var sessionRedirectFound = await redirectTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
+            if (sessionRedirectFound.Results.Count > 0) {
+
+                RedirectEntity[] entities = sessionRedirectFound.Results.ToArray();
+                return entities;
+
+            }
+            else {
+
+                return null;
+
+            }
+
+        }
+
+        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, int clickCount, int calendarClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, string videoLink) {
      
             await redirectTable.CreateIfNotExistsAsync();
             
             try {
 
-                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, clickCount, calendarClickCount, geoCount, calendarGeoCount);
+                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, clickCount, calendarClickCount, geoCount, calendarGeoCount, videoLink);
                 TableOperation insertCacheOperation = TableOperation.InsertOrMerge(newEntity);
                 await redirectTable.ExecuteAsync(insertCacheOperation);
 
