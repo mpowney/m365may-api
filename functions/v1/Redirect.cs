@@ -181,6 +181,51 @@ namespace com.m365may.v1
 
         }
 
+        [FunctionName("RedirectVideo")]
+        public static async Task<IActionResult> RunRedirectVideo(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "redirect/video/{id}/")] HttpRequest req,
+            [Table(TableNames.Cache)] CloudTable cacheTable,
+            [Table(TableNames.RedirectSessions)] CloudTable sessionRedirectTable,
+            [Queue(QueueNames.ProcessRedirectClicks), StorageAccount("AzureWebJobsStorage")] ICollector<HttpRequestEntity> processRedirectQueue,
+            string id,
+            ILogger log,
+            ExecutionContext context)
+        {
+
+            id = id ?? req.Query["id"];
+
+            int numericId = 0;
+            int.TryParse(id, out numericId);
+            if (numericId > 0) id = numericId.ToString();
+
+            var config = new ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+            RedirectEntity redirect = await RedirectEntity.get(sessionRedirectTable, id);
+            
+            if (redirect != null && redirect.VideoLink != null) {
+
+                if (req.QueryString.ToString().IndexOf("check") < 0) {
+                    processRedirectQueue.Add(new HttpRequestEntity(req));
+
+                    if (redirect.VideoLink.StartsWith("/") && redirect.VideoLink.Substring(1, 1) != "/")
+                        return new RedirectResult($"{config["REDIRECT_DESTINATION_HOST"]}{redirect.VideoLink}", false);
+                    
+                    return new RedirectResult($"{redirect.VideoLink}", false);
+
+                }
+
+                return new AcceptedResult();
+
+            }
+
+            return new NotFoundResult();
+
+        }
+
         [FunctionName("ProcessRedirectClicks")]
         public static async void ProcessRedirectClicks(
             [QueueTrigger(QueueNames.ProcessRedirectClicks)] string queuedHttpRequestString,
@@ -196,13 +241,23 @@ namespace com.m365may.v1
             if (matches.Count > 0) {
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
-                redirectEntity.ClickCount++;
-                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"), redirectEntity.VideoLink);
-                processRedirectQueueForGeo.Add(queuedHttpRequest);
-    
-                log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+                if (redirectEntity != null) {
 
-                return;
+                    redirectEntity.ClickCount++;
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    processRedirectQueueForGeo.Add(queuedHttpRequest);
+        
+                    log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                    return;
+
+                }
+                else {
+
+                    log.LogError($"Http request {queuedHttpRequest.Path} for click handling failed to match a redirect session");
+                    throw new System.Exception($"Http request {queuedHttpRequest.Path} for click handling doesn't match handled paths");
+
+                }
 
             }
 
@@ -210,13 +265,49 @@ namespace com.m365may.v1
             if (sessionMatches.Count > 0) {
 
                 RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, sessionMatches[0].Groups[1].Value);
-                redirectEntity.CalendarClickCount++;
-                await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}"), JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}"), redirectEntity.VideoLink);
-                processRedirectQueueForGeo.Add(queuedHttpRequest);
-    
-                log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
-                return;
+                if (redirectEntity != null) {
+
+                    redirectEntity.CalendarClickCount++;
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    processRedirectQueueForGeo.Add(queuedHttpRequest);
+        
+                    log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                    return;
+
+                }
+                else {
+
+                    log.LogError($"Http request {queuedHttpRequest.Path} for click handling failed to match a redirect session");
+                    throw new System.Exception($"Http request {queuedHttpRequest.Path} for click handling failed to match a redirect session");
+
+                }
+
+            }
+
+            MatchCollection videoMatches = Regex.Matches(queuedHttpRequest.Path, "/redirect/video/(\\d+)/", RegexOptions.IgnoreCase);
+            if (videoMatches.Count > 0) {
+
+                RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, videoMatches[0].Groups[1].Value);
+
+                if (redirectEntity != null) {
+
+                    redirectEntity.VideoClickCount++;
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    processRedirectQueueForGeo.Add(queuedHttpRequest);
+        
+                    log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                    return;
+
+                }
+                else {
+
+                    log.LogError($"Http request {queuedHttpRequest.Path} for click handling failed to match a redirect session");
+                    throw new System.Exception($"Http request {queuedHttpRequest.Path} for click handling failed to match a redirect session");
+
+                }
 
             }
 
@@ -258,30 +349,38 @@ namespace com.m365may.v1
                     string geoEntityString = JsonConvert.SerializeObject(geoEntity);
 
                     RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, matches[0].Groups[1].Value);
-                    if (redirectEntity.GeoCount == null) {
-                        log.LogInformation($"Adding GeoCount property to redirect entity {queuedHttpRequest.Path}");
-                        // redirectEntity.GeoCount = new Dictionary<string, int>();
-                    }
-                    
-                    Dictionary<string, int> _geoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount);
-                    if (_geoCount.ContainsKey(geoEntityString)) {
-                        log.LogInformation($"Incrementing GeoCount for redirect entity {queuedHttpRequest.Path}");
+                    if (redirectEntity != null) {
+
+                        if (redirectEntity.GeoCount == null) {
+                            log.LogInformation($"Adding GeoCount property to redirect entity {queuedHttpRequest.Path}");
+                            // redirectEntity.GeoCount = new Dictionary<string, int>();
+                        }
                         
-                        _geoCount[geoEntityString] = _geoCount[geoEntityString] + 1;
+                        Dictionary<string, int> _geoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.GeoCount ??= "{}");
+                        if (_geoCount.ContainsKey(geoEntityString)) {
+                            log.LogInformation($"Incrementing GeoCount for redirect entity {queuedHttpRequest.Path}");
+                            
+                            _geoCount[geoEntityString] = _geoCount[geoEntityString] + 1;
+                        }
+                        else {
+                            log.LogInformation($"Creating GeoCount for redirect entity {queuedHttpRequest.Path}");
+                            _geoCount.Add(geoEntityString, 1);
+                        }
+
+                        log.LogInformation($" GeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
+                        
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, JsonConvert.SerializeObject(_geoCount), redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+            
+                        log.LogInformation($"Successfully processed geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                        return;
                     }
                     else {
-                        log.LogInformation($"Creating GeoCount for redirect entity {queuedHttpRequest.Path}");
-                        _geoCount.Add(geoEntityString, 1);
+
+                        log.LogError($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+                        throw new System.Exception($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+
                     }
-
-                    log.LogInformation($" GeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
-                    
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, _geoCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.CalendarGeoCount), redirectEntity.VideoLink);
-        
-                    log.LogInformation($"Successfully processed geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
-
-                    return;
-
                 }
 
                 MatchCollection calendarMatches = Regex.Matches(queuedHttpRequest.Path, "/calendar/session/(\\d+)", RegexOptions.IgnoreCase);
@@ -293,32 +392,78 @@ namespace com.m365may.v1
                     string geoEntityString = JsonConvert.SerializeObject(geoEntity);
 
                     RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, calendarMatches[0].Groups[1].Value);
-                    if (redirectEntity.GeoCount == null) {
-                        log.LogInformation($"Adding CalendarGeoCount property to redirect entity {queuedHttpRequest.Path}");
-                        // redirectEntity.GeoCount = new Dictionary<string, int>();
-                    }
-                    
-                    Dictionary<string, int> _calendarGeoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount);
-                    if (_calendarGeoCount.ContainsKey(geoEntityString)) {
-                        log.LogInformation($"Incrementing CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
+
+                    if (redirectEntity != null) {
+
+                        Dictionary<string, int> _calendarGeoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.CalendarGeoCount ??= "{}");
+                        if (_calendarGeoCount.ContainsKey(geoEntityString)) {
+                            log.LogInformation($"Incrementing CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
+                            
+                            _calendarGeoCount[geoEntityString] = _calendarGeoCount[geoEntityString] + 1;
+                        }
+                        else {
+                            log.LogInformation($"Creating CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
+                            _calendarGeoCount.Add(geoEntityString, 1);
+                        }
+
+                        log.LogInformation($" CalendarGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                         
-                        _calendarGeoCount[geoEntityString] = _calendarGeoCount[geoEntityString] + 1;
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, JsonConvert.SerializeObject(_calendarGeoCount), redirectEntity.VideoGeoCount);
+            
+                        log.LogInformation($"Successfully processed calendar geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                        return;
+
                     }
                     else {
-                        log.LogInformation($"Creating CalendarGeoCount for redirect entity {queuedHttpRequest.Path}");
-                        _calendarGeoCount.Add(geoEntityString, 1);
+
+                        log.LogError($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+                        throw new System.Exception($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+
                     }
-
-                    log.LogInformation($" CalendarGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
-                    
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, JsonConvert.DeserializeObject<IDictionary<string, int>>(redirectEntity.GeoCount), _calendarGeoCount, redirectEntity.VideoLink);
-        
-                    log.LogInformation($"Successfully processed calendar geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
-
-                    return;
 
                 }
 
+                MatchCollection videoMatches = Regex.Matches(queuedHttpRequest.Path, "/redirect/video/(\\d+)/", RegexOptions.IgnoreCase);
+                if (videoMatches.Count > 0) {
+
+                    string ipResponseString = await getResponse.Content.ReadAsStringAsync();
+                    dynamic ipResponse = JsonConvert.DeserializeObject(ipResponseString);
+                    GeoEntity geoEntity = new GeoEntity(ipResponse);
+                    string geoEntityString = JsonConvert.SerializeObject(geoEntity);
+
+                    RedirectEntity redirectEntity = await RedirectEntity.get(redirectTable, videoMatches[0].Groups[1].Value);
+
+                    if (redirectEntity != null) {
+
+                        Dictionary<string, int> _videoGeoCount = JsonConvert.DeserializeObject<Dictionary<string, int>>(redirectEntity.VideoGeoCount ??= "{}");
+                        if (_videoGeoCount.ContainsKey(geoEntityString)) {
+                            log.LogInformation($"Incrementing VideoGeoCount for redirect entity {queuedHttpRequest.Path}");
+                            
+                            _videoGeoCount[geoEntityString] = _videoGeoCount[geoEntityString] + 1;
+                        }
+                        else {
+                            log.LogInformation($"Creating VideoGeoCount for redirect entity {queuedHttpRequest.Path}");
+                            _videoGeoCount.Add(geoEntityString, 1);
+                        }
+
+                        log.LogInformation($" VideoGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
+                        
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, JsonConvert.SerializeObject(_videoGeoCount));
+            
+                        log.LogInformation($"Successfully processed video geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
+
+                        return;
+
+                    }
+                    else {
+
+                        log.LogError($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+                        throw new System.Exception($"Http request {queuedHttpRequest.Path} for click geo handling failed to match a redirect session");
+
+                    }
+                }
+                
                 log.LogError($"Http request {queuedHttpRequest.Path} for click handling doesn't match handled paths");
                 throw new System.Exception($"Http request {queuedHttpRequest.Path} for click handling doesn't match handled paths");
             
