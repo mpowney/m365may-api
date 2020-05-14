@@ -253,12 +253,20 @@ namespace com.m365may.v1
 
             if (nodeMaster != null) {
 
-                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(nodeMaster);
-                CloudQueueClient queueClient = storageAccount.CreateCloudQueueClient();
-                CloudQueue destinationProcessClicksQueue = queueClient.GetQueueReference(QueueNames.ProcessRedirectClicks);
+                try {
 
-                await destinationProcessClicksQueue.AddMessageAsync(new CloudQueueMessage(queuedHttpRequestString));
-                
+                    CloudStorageAccount storageAccount = CloudStorageAccount.Parse(nodeMaster);
+                    CloudQueueClient queueClient = storageAccount.CreateCloudQueueClient();
+                    CloudQueue destinationProcessClicksQueue = queueClient.GetQueueReference(QueueNames.ProcessRedirectClicks);
+
+                    await destinationProcessClicksQueue.AddMessageAsync(new CloudQueueMessage(queuedHttpRequestString));
+                    
+                }
+                catch (Exception ex) {
+                    log.LogError(ex.Message);
+                    throw ex;
+                }
+
                 return;
 
             }
