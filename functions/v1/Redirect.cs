@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +12,9 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using com.m365may.entities;
@@ -22,12 +26,14 @@ namespace com.m365may.v1
     public static partial class TableNames {
         public const string Cache = "Cache";
         public const string RedirectSessions = "RedirectSessions";
+        public const string Nodes = "Nodes";
     }
 
     public static partial class QueueNames {
 
         public const string ProcessRedirectClicks = "ProcessRedirectClicks";
         public const string ProcessRedirectClicksForGeo = "ProcessRedirectClicksForGeo";
+        public const string SynchroniseRedirects = "synchroniseredirects";
     }
 
     public static class Redirect
@@ -237,6 +243,26 @@ namespace com.m365may.v1
 
             HttpRequestEntity queuedHttpRequest = JsonConvert.DeserializeObject<HttpRequestEntity>(queuedHttpRequestString);
 
+            var config = new ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+            string nodeMaster = config["NODE_SYNC_MASTER_CONN"];
+
+            if (nodeMaster != null) {
+
+                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(nodeMaster);
+                CloudQueueClient queueClient = storageAccount.CreateCloudQueueClient();
+                CloudQueue destinationProcessClicksQueue = queueClient.GetQueueReference(QueueNames.ProcessRedirectClicks);
+
+                await destinationProcessClicksQueue.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(queuedHttpRequest)));
+                
+                return;
+
+            }
+
             MatchCollection matches = Regex.Matches(queuedHttpRequest.Path, "/redirect/session/(\\d+)/", RegexOptions.IgnoreCase);
             if (matches.Count > 0) {
 
@@ -244,7 +270,7 @@ namespace com.m365may.v1
                 if (redirectEntity != null) {
 
                     redirectEntity.ClickCount++;
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
                     processRedirectQueueForGeo.Add(queuedHttpRequest);
         
                     log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -269,7 +295,7 @@ namespace com.m365may.v1
                 if (redirectEntity != null) {
 
                     redirectEntity.CalendarClickCount++;
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
                     processRedirectQueueForGeo.Add(queuedHttpRequest);
         
                     log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -294,7 +320,7 @@ namespace com.m365may.v1
                 if (redirectEntity != null) {
 
                     redirectEntity.VideoClickCount++;
-                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                    await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
                     processRedirectQueueForGeo.Add(queuedHttpRequest);
         
                     log.LogInformation($"Successfully processed click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
@@ -369,7 +395,7 @@ namespace com.m365may.v1
 
                         log.LogInformation($" GeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                         
-                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, JsonConvert.SerializeObject(_geoCount), redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, JsonConvert.SerializeObject(_geoCount), redirectEntity.CalendarGeoCount, redirectEntity.VideoGeoCount);
             
                         log.LogInformation($"Successfully processed geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
@@ -408,7 +434,7 @@ namespace com.m365may.v1
 
                         log.LogInformation($" CalendarGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                         
-                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, JsonConvert.SerializeObject(_calendarGeoCount), redirectEntity.VideoGeoCount);
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, JsonConvert.SerializeObject(_calendarGeoCount), redirectEntity.VideoGeoCount);
             
                         log.LogInformation($"Successfully processed calendar geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
@@ -449,7 +475,7 @@ namespace com.m365may.v1
 
                         log.LogInformation($" VideoGeoCount property value: {JsonConvert.SerializeObject(redirectEntity.GeoCount)}");
                         
-                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, JsonConvert.SerializeObject(_videoGeoCount));
+                        await RedirectEntity.put(redirectTable, redirectEntity.RowKey, redirectEntity.RedirectTo, redirectEntity.VideoLink, redirectEntity.StartRedirectingMinutes ??= 0, redirectEntity.ClickCount, redirectEntity.CalendarClickCount, redirectEntity.VideoClickCount, redirectEntity.GeoCount, redirectEntity.CalendarGeoCount, JsonConvert.SerializeObject(_videoGeoCount));
             
                         log.LogInformation($"Successfully processed video geo ip click for redirect query {queuedHttpRequest.Path} from {queuedHttpRequest.RemoteIpAddress}");
 
@@ -473,6 +499,146 @@ namespace com.m365may.v1
             throw new System.Exception($"Free geo ip lookup for IP {queuedHttpRequest.RemoteIpAddress} failed with status code {getResponse.StatusCode}");
 
         }    
+
+        [FunctionName("RedirectsGet")]
+        public static async Task<IActionResult> RedirectsGet (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_api/v1/redirects")] HttpRequest req,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            ILogger log,
+            ExecutionContext context,
+            ClaimsPrincipal claimsPrincipal)
+        {
+
+            if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            RedirectEntity[] entities = await RedirectEntity.getAll(redirectTable);
+            if (entities == null) {
+                return new NotFoundResult();
+            }
+
+            return new OkObjectResult(entities);
+
+        }
+
+        [FunctionName("RedirectGet")]
+        public static async Task<IActionResult> RedirectGet (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_api/v1/redirect/{key}")] HttpRequest req,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            string key,
+            ILogger log,
+            ExecutionContext context,
+            ClaimsPrincipal claimsPrincipal)
+        {
+
+            if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            RedirectEntity entity = await RedirectEntity.get(redirectTable, key);
+            if (entity == null) {
+                return new NotFoundResult();
+            }
+
+            return new OkObjectResult(entity);
+
+        }
+
+        [FunctionName("RedirectDelete")]
+        public static async Task<IActionResult> RedirectDelete (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "_api/v1/redirect/{key}")] HttpRequest req,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            string key,
+            ILogger log,
+            ExecutionContext context,
+            ClaimsPrincipal claimsPrincipal)
+        {
+
+            if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            RedirectEntity entity = await RedirectEntity.get(redirectTable, key);
+            if (entity == null) {
+                return new NotFoundResult();
+            }
+
+            bool deleteSuccess = await RedirectEntity.delete(redirectTable, entity);
+            return deleteSuccess ? (IActionResult)new OkObjectResult(entity) : new BadRequestResult();
+
+        }
+
+        [FunctionName("RedirectPost")]
+        public static async Task<IActionResult> RedirectPost (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "_api/v1/redirect")] HttpRequest req,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            ILogger log,
+            ExecutionContext context,
+            ClaimsPrincipal claimsPrincipal)
+        {
+
+            if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            RedirectEntity entity = JsonConvert.DeserializeObject<RedirectEntity>(requestBody);
+
+            if (entity.RowKey == null || entity.RedirectTo == null) {
+                return new BadRequestObjectResult($"Please specify the key and redirectTo parameters in the request body");
+            }
+
+            log.LogInformation($"Getting Redirect row for values {claimsPrincipal.Identity.Name} and {entity.RowKey}");
+            RedirectEntity existingEntity = await RedirectEntity.get(redirectTable, entity.RowKey);
+            if (existingEntity != null) {
+                return new BadRequestObjectResult($"Redirect with {entity.RowKey} already exists for {claimsPrincipal.Identity.Name}");
+            }
+
+            bool success = await RedirectEntity.put(redirectTable, entity.RowKey, entity.RedirectTo, entity.VideoLink, -10, 0, 0, 0, "{}", "{}", "{}");
+            if (!success) {
+                return new BadRequestObjectResult($"Error occurred creating {entity.RowKey} already exists for {claimsPrincipal.Identity.Name}");
+            }
+
+            return new OkResult();
+            
+        }
+
+        [FunctionName("RedirectPatch")]
+        public static async Task<IActionResult> RedirectPatch (
+            [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "_api/v1/redirect/{key}")] HttpRequest req,
+            [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            string key,
+            ILogger log,
+            ExecutionContext context,
+            ClaimsPrincipal claimsPrincipal)
+        {
+
+            if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            dynamic entity = JsonConvert.DeserializeObject<dynamic>(requestBody);
+
+            log.LogInformation($"Getting Redirect row for values {claimsPrincipal.Identity.Name} and {entity.RowKey}");
+            RedirectEntity existingEntity = await RedirectEntity.get(redirectTable, key);
+            if (existingEntity == null) {
+                return new BadRequestObjectResult($"Redirect with {key} doesn't exist for {claimsPrincipal.Identity.Name}");
+            }
+
+            existingEntity.RedirectTo = entity.redirectTo ??= existingEntity.RedirectTo;
+            existingEntity.StartRedirectingMinutes = entity.startRedirectingMinutes ??= existingEntity.StartRedirectingMinutes;
+            existingEntity.VideoLink = entity.videoLink ??= existingEntity.VideoLink;
+
+            bool success = await RedirectEntity.put(redirectTable, existingEntity);
+            if (!success) {
+                return new BadRequestObjectResult($"Error occurred updating {key} for {claimsPrincipal.Identity.Name}");
+            }
+
+            return new OkResult();
+            
+        }
 
     }
 

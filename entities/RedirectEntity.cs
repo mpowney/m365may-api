@@ -29,12 +29,13 @@ namespace com.m365may.entities
     public class RedirectEntity : TableEntity
     {
         public RedirectEntity() {}
-        public RedirectEntity(string key, string redirectTo, string videoLink, int clickCount, int calendarClickCount, int videoClickCount, string geoCount, string calendarGeoCount, string videoGeoCount) {
+        public RedirectEntity(string key, string redirectTo, string videoLink, int startRedirectingMinutes, int clickCount, int calendarClickCount, int videoClickCount, string geoCount, string calendarGeoCount, string videoGeoCount) {
             
             this.PartitionKey = "";
             this.RowKey = key;
             this.RedirectTo = redirectTo;
             this.VideoLink = videoLink;
+            this.StartRedirectingMinutes = startRedirectingMinutes;
             this.ClickCount = clickCount;
             this.CalendarClickCount = calendarClickCount;
             this.VideoClickCount = videoClickCount;
@@ -43,7 +44,7 @@ namespace com.m365may.entities
             this.VideoGeoCount = videoGeoCount;
             
         }
-        public RedirectEntity(string key, string redirectTo, string videoLink, int clickCount, int calendarClickCount, int videoClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, IDictionary<string, int> videoGeoCount) {
+        public RedirectEntity(string key, string redirectTo, string videoLink, int startRedirectingMinutes, int clickCount, int calendarClickCount, int videoClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, IDictionary<string, int> videoGeoCount) {
             
             string _geoCount = JsonConvert.SerializeObject(geoCount);
             string _calendarGeoCount = JsonConvert.SerializeObject(calendarGeoCount);
@@ -53,6 +54,7 @@ namespace com.m365may.entities
             this.RowKey = key;
             this.RedirectTo = redirectTo;
             this.VideoLink = videoLink;
+            this.StartRedirectingMinutes = startRedirectingMinutes;
             this.ClickCount = clickCount;
             this.CalendarClickCount = calendarClickCount;
             this.VideoClickCount = videoClickCount;
@@ -114,15 +116,15 @@ namespace com.m365may.entities
 
         }
 
-        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, string videoLink, int clickCount, int calendarClickCount, int videoClickCount, string geoCount, string calendarGeoCount, string videoGeoCount) {
+        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, string videoLink, int startRedirectingMinutes, int clickCount, int calendarClickCount, int videoClickCount, string geoCount, string calendarGeoCount, string videoGeoCount) {
      
             await redirectTable.CreateIfNotExistsAsync();
             
             try {
 
-                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, videoLink, clickCount, calendarClickCount, videoClickCount, geoCount, calendarGeoCount, videoGeoCount);
-                TableOperation insertCacheOperation = TableOperation.InsertOrMerge(newEntity);
-                await redirectTable.ExecuteAsync(insertCacheOperation);
+                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, videoLink, startRedirectingMinutes, clickCount, calendarClickCount, videoClickCount, geoCount, calendarGeoCount, videoGeoCount);
+                TableOperation redirectOperation = TableOperation.InsertOrMerge(newEntity);
+                await redirectTable.ExecuteAsync(redirectOperation);
 
             }
             catch {
@@ -134,15 +136,53 @@ namespace com.m365may.entities
 
         }
 
-        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, string videoLink, int clickCount, int calendarClickCount, int videoClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, IDictionary<string, int> videoGeoCount) {
+        public static async Task<bool> put(CloudTable redirectTable, string key, string redirectTo, string videoLink, int startRedirectingMinutes, int clickCount, int calendarClickCount, int videoClickCount, IDictionary<string, int> geoCount, IDictionary<string, int> calendarGeoCount, IDictionary<string, int> videoGeoCount) {
      
             await redirectTable.CreateIfNotExistsAsync();
             
             try {
 
-                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, videoLink, clickCount, calendarClickCount, videoClickCount, geoCount, calendarGeoCount, videoGeoCount);
-                TableOperation insertCacheOperation = TableOperation.InsertOrMerge(newEntity);
-                await redirectTable.ExecuteAsync(insertCacheOperation);
+                RedirectEntity newEntity = new RedirectEntity(key, redirectTo, videoLink, startRedirectingMinutes, clickCount, calendarClickCount, videoClickCount, geoCount, calendarGeoCount, videoGeoCount);
+                TableOperation redirectOperation = TableOperation.InsertOrMerge(newEntity);
+                await redirectTable.ExecuteAsync(redirectOperation);
+
+            }
+            catch {
+
+                return false;
+                
+            }
+            return true;
+
+        }
+
+        public static async Task<bool> put(CloudTable redirectTable, RedirectEntity entityToUpdate) {
+     
+            await redirectTable.CreateIfNotExistsAsync();
+            
+            try {
+
+                TableOperation redirectOperation = TableOperation.InsertOrMerge(entityToUpdate);
+                await redirectTable.ExecuteAsync(redirectOperation);
+
+            }
+            catch {
+
+                return false;
+                
+            }
+            return true;
+
+        }
+
+        public static async Task<bool> delete(CloudTable redirectTable, RedirectEntity entity) {
+     
+            await redirectTable.CreateIfNotExistsAsync();
+            
+            try {
+
+                TableOperation deleteOperation = TableOperation.Delete(entity);
+                await redirectTable.ExecuteAsync(deleteOperation);
 
             }
             catch {
