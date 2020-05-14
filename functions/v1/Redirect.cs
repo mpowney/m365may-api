@@ -257,7 +257,7 @@ namespace com.m365may.v1
                 CloudQueueClient queueClient = storageAccount.CreateCloudQueueClient();
                 CloudQueue destinationProcessClicksQueue = queueClient.GetQueueReference(QueueNames.ProcessRedirectClicks);
 
-                await destinationProcessClicksQueue.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(queuedHttpRequest)));
+                await destinationProcessClicksQueue.AddMessageAsync(new CloudQueueMessage(queuedHttpRequestString));
                 
                 return;
 
