@@ -31,8 +31,8 @@ namespace com.m365may.v1
 
     public static partial class QueueNames {
 
-        public const string ProcessRedirectClicks = "ProcessRedirectClicks";
-        public const string ProcessRedirectClicksForGeo = "ProcessRedirectClicksForGeo";
+        public const string ProcessRedirectClicks = "processredirectclicks";
+        public const string ProcessRedirectClicksForGeo = "processredirectclicksforgeo";
         public const string SynchroniseRedirects = "synchroniseredirects";
     }
 
