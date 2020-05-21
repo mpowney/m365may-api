@@ -57,7 +57,8 @@ namespace com.m365may.v1
                 #nullable disable
                 if (foundSession != null) {
 
-                    processRedirectQueue.Add(new HttpRequestEntity(req));
+                    bool noTrack = req.Query.ContainsKey("noTrack");
+                    if (!noTrack) processRedirectQueue.Add(new HttpRequestEntity(req));
 
                     return ical ? 
                             (IActionResult)new ContentResult {
