@@ -2,7 +2,11 @@
     "version": "2.0",
     "logging": {
         "logLevel": {
-            "default": "Debug"
+            "default": "Debug",
+            "Function.ProcessFileExports": "Information",
+            "Function.ProcessRedirectClicks": "Information",
+            "Function.ProcessRedirectClicksForGeo": "Information",
+            "Function.ProcessRedirectsSync": "Information"
         },
         "applicationInsights": {
             "samplingExcludedTypes": "Request",
