@@ -169,7 +169,7 @@ namespace com.m365may.v1
                 return new BadRequestObjectResult($"Redirect with {entity.RowKey} already exists");
             }
 
-            bool success = await UserEntity.put(userTable, entity.RowKey, entity.Permissions);
+            bool success = await UserEntity.put(userTable, entity.RowKey, JsonConvert.DeserializeObject<string[]>(entity.Permissions));
             if (!success) {
                 return new BadRequestObjectResult($"Error occurred creating {entity.RowKey} already exists");
             }
@@ -200,17 +200,17 @@ namespace com.m365may.v1
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic entity = JsonConvert.DeserializeObject<dynamic>(requestBody);
 
-            log.LogInformation($"Getting Redirect row for values {claimsPrincipal.Identity.Name} and {entity.RowKey}");
+            log.LogInformation($"Getting Redirect row for values for {entity.RowKey}");
             UserEntity existingEntity = await UserEntity.get(userTable, key);
             if (existingEntity == null) {
-                return new BadRequestObjectResult($"Redirect with {key} doesn't exist for {claimsPrincipal.Identity.Name}");
+                return new BadRequestObjectResult($"User {key} doesn't exist");
             }
 
-            existingEntity.Permissions = entity.Permissions ??= existingEntity.Permissions;
+            existingEntity.Permissions = entity.Permissions != null ? JsonConvert.SerializeObject(entity.Permissions) : existingEntity.Permissions;
 
             bool success = await UserEntity.put(userTable, existingEntity);
             if (!success) {
-                return new BadRequestObjectResult($"Error occurred updating {key} for {claimsPrincipal.Identity.Name}");
+                return new BadRequestObjectResult($"Error occurred updating {key}");
             }
 
             return new OkResult();

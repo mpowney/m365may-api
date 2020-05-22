@@ -1,24 +1,25 @@
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace com.m365may.entities
 {
     public class UserEntity : TableEntity
     {
 
-        public string?[] Permissions { get; set; }
+        public string Permissions { get; set; }
         public UserEntity() {}
         public UserEntity(string key, string[] permissions) {
             
             this.PartitionKey = string.Empty;
             this.RowKey = key;
-            this.Permissions = permissions;
+            this.Permissions = JsonConvert.SerializeObject(permissions);
             
         }
         public bool HasPermission(string permission) {
             if (this.Permissions == null) return false;
-            foreach (string perm in this.Permissions) {
+            foreach (string perm in JsonConvert.DeserializeObject<string[]>(this.Permissions)) {
                 if (perm == permission) return true;
             }
             return false;
