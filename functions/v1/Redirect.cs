@@ -27,6 +27,7 @@ namespace com.m365may.v1
         public const string Cache = "Cache";
         public const string RedirectSessions = "RedirectSessions";
         public const string Nodes = "Nodes";
+        public const string Users = "Users";
     }
 
     public static partial class QueueNames {
@@ -34,6 +35,10 @@ namespace com.m365may.v1
         public const string ProcessRedirectClicks = "processredirectclicks";
         public const string ProcessRedirectClicksForGeo = "processredirectclicksforgeo";
         public const string SynchroniseRedirects = "synchroniseredirects";
+    }
+
+    public static partial class Permissions {
+        public const string SessionAdministrator = "/Session/Administrator";
     }
 
     public static class Redirect
@@ -512,12 +517,18 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RedirectsGet (
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_api/v1/redirects")] HttpRequest req,
             [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            [Table(TableNames.Users)] CloudTable userTable,
             ILogger log,
             ExecutionContext context,
             ClaimsPrincipal claimsPrincipal)
         {
 
             if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            UserEntity currentUser = await UserEntity.get(userTable, claimsPrincipal.Identity.Name);
+            if (!currentUser.HasPermission(Permissions.SessionAdministrator)) {
                 return new UnauthorizedResult();
             }
 
@@ -534,6 +545,7 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RedirectGet (
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "_api/v1/redirect/{key}")] HttpRequest req,
             [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            [Table(TableNames.Users)] CloudTable userTable,
             string key,
             ILogger log,
             ExecutionContext context,
@@ -541,6 +553,11 @@ namespace com.m365may.v1
         {
 
             if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            UserEntity currentUser = await UserEntity.get(userTable, claimsPrincipal.Identity.Name);
+            if (!currentUser.HasPermission(Permissions.SessionAdministrator)) {
                 return new UnauthorizedResult();
             }
 
@@ -557,6 +574,7 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RedirectDelete (
             [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "_api/v1/redirect/{key}")] HttpRequest req,
             [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            [Table(TableNames.Users)] CloudTable userTable,
             string key,
             ILogger log,
             ExecutionContext context,
@@ -564,6 +582,11 @@ namespace com.m365may.v1
         {
 
             if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            UserEntity currentUser = await UserEntity.get(userTable, claimsPrincipal.Identity.Name);
+            if (!currentUser.HasPermission(Permissions.SessionAdministrator)) {
                 return new UnauthorizedResult();
             }
 
@@ -581,12 +604,18 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RedirectPost (
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "_api/v1/redirect")] HttpRequest req,
             [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            [Table(TableNames.Users)] CloudTable userTable,
             ILogger log,
             ExecutionContext context,
             ClaimsPrincipal claimsPrincipal)
         {
 
             if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            UserEntity currentUser = await UserEntity.get(userTable, claimsPrincipal.Identity.Name);
+            if (!currentUser.HasPermission(Permissions.SessionAdministrator)) {
                 return new UnauthorizedResult();
             }
 
@@ -616,6 +645,7 @@ namespace com.m365may.v1
         public static async Task<IActionResult> RedirectPatch (
             [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "_api/v1/redirect/{key}")] HttpRequest req,
             [Table(TableNames.RedirectSessions)] CloudTable redirectTable,
+            [Table(TableNames.Users)] CloudTable userTable,
             string key,
             ILogger log,
             ExecutionContext context,
@@ -623,6 +653,11 @@ namespace com.m365may.v1
         {
 
             if (!claimsPrincipal.Identity.IsAuthenticated) {
+                return new UnauthorizedResult();
+            }
+
+            UserEntity currentUser = await UserEntity.get(userTable, claimsPrincipal.Identity.Name);
+            if (!currentUser.HasPermission(Permissions.SessionAdministrator)) {
                 return new UnauthorizedResult();
             }
 
