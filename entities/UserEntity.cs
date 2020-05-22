@@ -7,7 +7,7 @@ namespace com.m365may.entities
     public class UserEntity : TableEntity
     {
 
-        public string[] Permissions { get; set; }
+        public string?[] Permissions { get; set; }
         public UserEntity() {}
         public UserEntity(string key, string[] permissions) {
             
@@ -17,6 +17,7 @@ namespace com.m365may.entities
             
         }
         public bool HasPermission(string permission) {
+            if (this.Permissions == null) return false;
             foreach (string perm in this.Permissions) {
                 if (perm == permission) return true;
             }
@@ -31,10 +32,10 @@ namespace com.m365may.entities
                 TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, 
                             $"{string.Empty}"));
 
-            var sessionRedirectFound = await userTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
-            if (sessionRedirectFound.Results.Count > 0) {
+            var userFound = await userTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
+            if (userFound.Results.Count > 0) {
 
-                List<UserEntity> entities = sessionRedirectFound.Results;
+                List<UserEntity> entities = userFound.Results;
                 return entities;
 
             }
@@ -58,10 +59,10 @@ namespace com.m365may.entities
                         TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, 
                             $"{key}")));
 
-            var sessionRedirectFound = await userTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
-            if (sessionRedirectFound.Results.Count > 0) {
+            var userFound = await userTable.ExecuteQuerySegmentedAsync(rangeQuery, null);
+            if (userFound.Results.Count > 0) {
 
-                UserEntity entity = sessionRedirectFound.Results.ToArray()[0];
+                UserEntity entity = userFound.Results.ToArray()[0];
                 return entity;
 
             }
