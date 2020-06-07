@@ -8,6 +8,12 @@ This is one of three repo's used to deliver the M365 May session handling. The o
 * [M365 May Client](https://github.com/mpowney/m365may-client) client side code for attendees to browse sessions via this API
 * [M365 May Admin](https://github.com/mpowney/m365may-admin) client side code to allow event co-ordinators to maintain sessions via this API
 
+The solution requires the following:
+* An event registered with [Sessionize](https://sessionize.com/) to organise the sessions of the event
+
+Additionally, the following API is used:
+* [Free IP Geolocation API](https://freegeoip.app/) to lookup geo location data from IP addresses of users
+
 ## Development environment
 
 This app can be developed in any environment supported by dotnet core function apps runtime.  The development environment used by the author was:
