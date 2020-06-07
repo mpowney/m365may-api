@@ -19,7 +19,7 @@ This app can be developed in any environment supported by dotnet core function a
 
 ## Configuration
 
-The following environment variables need to be present during runtime to point the solution to supporting resources:
+The following environment variables need to be present during runtime to point the solution to supporting resources.  For local development, these can be added to a [local.settings.json file](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=macos%2Ccsharp%2Cbash#local-settings-file) to get a dev environment up and running:
 
 | Variable name | Example | Description |
 |---------------|---------|-------------|
